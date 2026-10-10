@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f151b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{margin:0}
+[hidden]{display:none!important}
+img{max-width:100%}
+</style>
+<title>GTM Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Concept: a ledger. Totals strip first, category tabs under it, dense rows with aligned amounts. Teal for actions, gold reserved for the gold balance. */
+:root{
+  --bg:#eef1f4; --surface:#ffffff; --fg:#13202b; --muted:#5b6b78; --line:#d6dde3;
+  --accent:#0f6f66; --accent-fg:#ffffff; --gold:#8a6200; --danger:#b3261e; --chip:#e0e7ec;
+  --display:"Chakra Petch","Trebuchet MS",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f151b; --surface:#17202a; --fg:#e6edf2; --muted:#8fa1af; --line:#26333f;
+    --accent:#3dbfae; --accent-fg:#06211d; --gold:#e5b94e; --danger:#ff8a80; --chip:#202c37;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f151b; --surface:#17202a; --fg:#e6edf2; --muted:#8fa1af; --line:#26333f;
+  --accent:#3dbfae; --accent-fg:#06211d; --gold:#e5b94e; --danger:#ff8a80; --chip:#202c37;
+  color-scheme:dark;
+}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45;padding-inline:16px}
+*{box-sizing:border-box}
+button,input,select,textarea{font:inherit;color:inherit}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.app{max-width:720px;margin-inline:auto;padding-block:16px 96px}
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+h1{font-family:var(--display);font-weight:700;font-size:1.6rem;letter-spacing:.01em;margin:0;text-wrap:balance}
+.sub{margin:2px 0 0;color:var(--muted);font-size:.82rem}
+.ghost{background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer;color:var(--fg)}
+.ghost:hover{background:var(--chip)}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);z-index:5;padding-bottom:8px;margin-top:8px}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding-block:8px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.chip{flex:none;background:var(--chip);border:1px solid transparent;border-radius:999px;padding:7px 14px;cursor:pointer;font-weight:500;white-space:nowrap}
+.chip.on{background:var(--accent);color:var(--accent-fg)}
+.chip.add{background:transparent;border:1px dashed var(--line);color:var(--muted)}
+.search input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:16px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-block:12px 4px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
+.kpi .l{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.kpi .v{font-family:var(--mono);font-size:1.45rem;font-variant-numeric:tabular-nums;margin-top:2px;overflow-wrap:anywhere}
+.kpi .s{font-size:.78rem;color:var(--muted);margin-top:2px}
+.kpi.gold .v{color:var(--gold)}
+h2{font-family:var(--display);font-size:1.05rem;font-weight:600;margin:22px 0 4px}
+.head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:18px}
+.head h2{margin:0}
+.totals{font-family:var(--mono);font-size:.9rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.hint{font-size:.82rem;color:var(--muted);margin:4px 0 0}
+.list{margin-top:6px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--line);padding:12px 2px;cursor:pointer}
+.row:hover{background:color-mix(in srgb,var(--chip) 55%,transparent)}
+.row .main{display:flex;flex-direction:column;min-width:0}
+.row .name{font-weight:600;overflow-wrap:anywhere}
+.row .meta{font-size:.8rem;color:var(--muted);overflow-wrap:anywhere}
+.row .note{font-size:.82rem;color:var(--muted);overflow-wrap:anywhere;margin-top:2px}
+.row .amt{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:1px}
+.row .amt.gold,.gold-text{color:var(--gold)}
+.cat-row .meta{font-family:var(--mono)}
+.empty{border:1px dashed var(--line);border-radius:10px;padding:20px 16px;margin-top:12px;color:var(--muted)}
+.empty strong{display:block;color:var(--fg);font-family:var(--display);font-size:1.05rem;margin-bottom:4px}
+.primary{background:var(--accent);color:var(--accent-fg);border:0;border-radius:10px;padding:11px 16px;font-weight:600;cursor:pointer}
+.primary:disabled{opacity:.5;cursor:default}
+.fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));box-shadow:0 6px 18px rgba(0,0,0,.28);padding:13px 20px;border-radius:999px;z-index:6}
+.danger{color:var(--danger);border-color:var(--danger)}
+#sheet-root{position:fixed;inset:0;z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.5)}
+.sheet{position:relative;width:100%;max-width:560px;max-height:92dvh;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:16px 16px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+.sheet h3{font-family:var(--display);font-size:1.2rem;margin:0 0 12px}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.field label,.field .lab{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.field input,.field select,.field textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:16px}
+.field textarea{min-height:76px;resize:vertical}
+.pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--bg)}
+.seg label{flex:1;position:relative;text-transform:none;letter-spacing:0;font-size:1rem;color:var(--fg)}
+.seg input{position:absolute;opacity:0;width:1px;height:1px}
+.seg span{display:block;text-align:center;padding:10px;cursor:pointer}
+.seg input:checked+span{background:var(--accent);color:var(--accent-fg);font-weight:600}
+.seg input:focus-visible+span{outline:2px solid var(--accent);outline-offset:-2px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.err{color:var(--danger);font-size:.84rem;min-height:1.2em;margin:0 0 6px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;z-index:30;max-width:calc(100% - 32px);font-size:.9rem}
+@media (prefers-reduced-motion:no-preference){.chip,.row,.ghost{transition:background .12s}}
+.acts{display:flex;gap:8px;flex:none}
+</style></head><body>
+
+
+<div class="app">
+  <header class="top">
+    <div>
+      <h1>GTM Ledger</h1>
+      <p class="sub" id="status">Loading your entries</p>
+    </div>
+    <div class="acts"><button id="backup" class="ghost">Backup</button><button id="restore" class="ghost">Restore</button><input id="restore-file" type="file" accept="application/json,.json" hidden></div>
+  </header>
+  <div class="bar">
+    <div id="tabs" class="tabs" role="tablist" aria-label="Categories"></div>
+    <div class="search"><label class="sr" for="q">Search</label><input id="q" type="search" placeholder="Search everything" autocomplete="off"></div>
+  </div>
+  <main id="content"></main>
+</div>
+<button id="fab" class="primary fab">+ Add</button>
+<div id="sheet-root" hidden><div class="scrim" id="scrim"></div><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script>
+(function(){
+var BASE=[
+ {id:'purchases',label:'Purchases',nameLabel:'Item',amount:true,amountLabel:'Price',whereLabel:'Bought from',empty:'Log what you buy with the price and where you got it, for example Iron Chestplate, $4,500, Market stall.'},
+ {id:'houses',label:'Houses',nameLabel:'House',amount:true,amountLabel:'Paid',whereLabel:'Location or coords',empty:'Add each house you own with what you paid and where it is.'},
+ {id:'money',label:'Money & Gold',nameLabel:'Wallet',amount:true,amountLabel:'Balance',whereLabel:'Where it is held',empty:'Add a row for each place you hold cash or gold, such as Wallet, Bank or Chest.'},
+ {id:'accounts',label:'Accounts',nameLabel:'Service',amount:false,whereLabel:'Username',empty:'List the services you use with the username and a note. Passwords do not belong here.',hint:'Usernames and notes only. Do not store passwords in this page.'}
+];
+var state={entries:[],cats:[],tab:'overview',q:'',ready:false,mode:'pending'};
+var db=null;
+var LS='gtm-ledger-v1';
+
+function $(s){return document.querySelector(s)}
+function el(tag,attrs){
+  var n=document.createElement(tag);
+  if(attrs){Object.keys(attrs).forEach(function(k){
+    var v=attrs[k];
+    if(k==='class')n.className=v;
+    else if(k==='text')n.textContent=v;
+    else if(k.indexOf('on')===0)n.addEventListener(k.slice(2),v);
+    else if(v===true)n.setAttribute(k,'');
+    else if(v!==false&&v!=null)n.setAttribute(k,v);
+  })}
+  for(var i=2;i<arguments.length;i++){
+    var kids=[].concat(arguments[i]);
+    kids.forEach(function(c){if(c==null||c===false)return;n.append(c.nodeType?c:document.createTextNode(c))});
+  }
+  return n;
+}
+function allCats(){return BASE.concat(state.cats)}
+function getCat(id){return allCats().filter(function(c){return c.id===id})[0]}
+function fmtNum(n){return Number(n).toLocaleString('en-US',{maximumFractionDigits:2})}
+function money(n){return '$'+fmtNum(n)}
+function goldTxt(n){return fmtNum(n)+' gold'}
+function amtText(e){
+  var c=getCat(e.cat);
+  if(!c||!c.amount||e.amount==null||e.amount==='')return '';
+  return e.unit==='gold'?goldTxt(e.amount):money(e.amount);
+}
+function sum(list,unit){return list.reduce(function(t,e){return t+((e.unit||'$')===unit&&typeof e.amount==='number'?e.amount:0)},0)}
+function fdate(s){
+  if(!s)return '';
+  var d=new Date(s+'T00:00:00');if(isNaN(d))return '';
+  var o={month:'short',day:'numeric'};
+  if(d.getFullYear()!==new Date().getFullYear())o.year='numeric';
+  return d.toLocaleDateString('en-US',o);
+}
+function today(){return new Date().toLocaleDateString('en-CA')}
+function sorted(list){
+  return list.slice().sort(function(a,b){
+    var x=(b.date||'').localeCompare(a.date||'');
+    return x||((b.ts||0)-(a.ts||0));
+  });
+}
+function newId(p){return p+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+var toastTimer;
+function toast(msg){
+  var t=$('#toast');t.textContent=msg;t.hidden=false;
+  clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.hidden=true},3200);
+}
+
+/* ---------- storage ---------- */
+function persistLocal(){
+  try{localStorage.setItem(LS,JSON.stringify({entries:state.entries,cats:state.cats}))}
+  catch(e){toast('Could not save in this browser.')}
+}
+function loadLocal(){
+  try{
+    var d=JSON.parse(localStorage.getItem(LS)||'null');
+    if(d){state.entries=d.entries||[];state.cats=d.cats||[]}
+  }catch(e){}
+}
+function dbFail(e){
+  var code=e&&e.code;
+  toast(code==='quota_exceeded'?'Storage is full. Delete some entries first.':'Could not save. Try again in a moment.');
+}
+function saveEntry(e){
+  var body={cat:e.cat,name:e.name,amount:e.amount,unit:e.unit,where:e.where,note:e.note,date:e.date,ts:e.ts};
+  if(state.mode==='db'){
+    return db.collection('entries').doc(e.id).set(body).then(function(){return true},function(x){dbFail(x);return false});
+  }
+  var i=state.entries.findIndex(function(x){return x.id===e.id});
+  var full=Object.assign({id:e.id},body);
+  if(i>=0)state.entries[i]=full;else state.entries.push(full);
+  persistLocal();render();
+  return Promise.resolve(true);
+}
+function removeEntry(id){
+  if(state.mode==='db')return db.collection('entries').doc(id).delete().then(function(){return true},function(x){dbFail(x);return false});
+  state.entries=state.entries.filter(function(x){return x.id!==id});
+  persistLocal();render();
+  return Promise.resolve(true);
+}
+function saveCats(){
+  if(state.mode==='db')return db.doc('meta/config').set({cats:state.cats}).catch(dbFail);
+  persistLocal();render();
+  return Promise.resolve();
+}
+
+/* ---------- rendering ---------- */
+function setTab(id){
+  state.tab=id;
+  try{localStorage.setItem('gtm-ledger-tab',id)}catch(e){}
+  render();window.scrollTo(0,0);
+}
+function renderTabs(){
+  var box=$('#tabs');box.replaceChildren();
+  [{id:'overview',label:'Overview'}].concat(allCats()).forEach(function(c){
+    box.append(el('button',{class:'chip'+(state.tab===c.id?' on':''),role:'tab','aria-selected':String(state.tab===c.id),onclick:function(){setTab(c.id)},text:c.label}));
+  });
+  box.append(el('button',{class:'chip add',onclick:openCatSheet,text:'+ Category'}));
+}
+function rowFor(e,showCat){
+  var c=getCat(e.cat)||{label:'Other'};
+  var amt=amtText(e);
+  var meta=[showCat?c.label:null,e.where,fdate(e.date)].filter(Boolean).join(' · ');
+  return el('button',{class:'row',onclick:function(){openEntry(e)}},
+    el('span',{class:'main'},
+      el('span',{class:'name',text:e.name}),
+      meta?el('span',{class:'meta',text:meta}):null,
+      e.note?el('span',{class:'note',text:e.note}):null),
+    amt?el('span',{class:'amt'+(e.unit==='gold'?' gold':''),text:amt}):null);
+}
+function matches(e){
+  var q=state.q.trim().toLowerCase();
+  if(!q)return true;
+  var c=getCat(e.cat);
+  return [e.name,e.where,e.note,c&&c.label].join(' ').toLowerCase().indexOf(q)>=0;
+}
+function kpi(label,value,sub,cls){
+  return el('div',{class:'kpi'+(cls?' '+cls:'')},el('div',{class:'l',text:label}),el('div',{class:'v',text:value}),sub?el('div',{class:'s',text:sub}):null);
+}
+function totalsLine(list){
+  var d=sum(list,'$'),g=sum(list,'gold'),parts=[];
+  if(d)parts.push(money(d));
+  if(g)parts.push(goldTxt(g));
+  return parts.join('  +  ');
+}
+function renderOverview(box){
+  var q=state.q.trim();
+  if(q){
+    var res=sorted(state.entries.filter(matches));
+    box.append(el('div',{class:'head'},el('h2',{text:'Results'}),el('span',{class:'totals',text:res.length+' found'})));
+    if(!res.length)box.append(el('div',{class:'empty'},el('strong',{text:'Nothing matches'}),'Try a different word, or check the spelling.'));
+    else box.append(el('div',{class:'list'},res.map(function(e){return rowFor(e,true)})));
+    return;
+  }
+  var E=state.entries;
+  var by=function(id){return E.filter(function(e){return e.cat===id})};
+  var mon=by('money'),hou=by('houses'),pur=by('purchases'),acc=by('accounts');
+  var spentG=sum(pur,'gold');
+  box.append(el('div',{class:'kpis'},
+    kpi('Cash',money(sum(mon,'$')),mon.length+(mon.length===1?' balance':' balances')),
+    kpi('Gold',goldTxt(sum(mon,'gold')),'across all balances','gold'),
+    kpi('Houses',String(hou.length),hou.length?('Paid '+(totalsLine(hou)||'$0')):'None logged'),
+    kpi('Spent',money(sum(pur,'$')),spentG?('plus '+goldTxt(spentG)):pur.length+(pur.length===1?' purchase':' purchases')),
+    kpi('Accounts',String(acc.length),'usernames and notes')));
+  if(!E.length){
+    box.append(el('div',{class:'empty'},el('strong',{text:'Nothing logged yet'}),
+      'Start with your balances under Money & Gold, then add houses, purchases and accounts. Everything here saves automatically.',
+      el('div',{class:'actions'},el('button',{class:'primary',onclick:function(){openEntry(null,'money')},text:'Add a balance'}))));
+    return;
+  }
+  box.append(el('h2',{text:'By category'}));
+  box.append(el('div',{class:'list'},allCats().map(function(c){
+    var l=by(c.id);
+    return el('button',{class:'row cat-row',onclick:function(){setTab(c.id)}},
+      el('span',{class:'main'},el('span',{class:'name',text:c.label}),el('span',{class:'meta',text:l.length+(l.length===1?' entry':' entries')})),
+      el('span',{class:'amt',text:totalsLine(l)}));
+  })));
+  box.append(el('h2',{text:'Recent'}));
+  box.append(el('div',{class:'list'},sorted(E).slice(0,6).map(function(e){return rowFor(e,true)})));
+}
+function renderCategory(box,c){
+  var list=sorted(state.entries.filter(function(e){return e.cat===c.id}));
+  var shown=list.filter(matches);
+  box.append(el('div',{class:'head'},el('h2',{text:c.label}),el('span',{class:'totals',text:totalsLine(list)})));
+  if(c.hint)box.append(el('p',{class:'hint',text:c.hint}));
+  if(c.id==='money'){
+    box.append(el('div',{class:'kpis'},kpi('Cash',money(sum(list,'$')),null),kpi('Gold',goldTxt(sum(list,'gold')),null,'gold')));
+  }
+  if(!list.length){
+    box.append(el('div',{class:'empty'},el('strong',{text:'No '+c.label.toLowerCase()+' yet'}),c.empty||'Add the first entry to get started.',
+      el('div',{class:'actions'},el('button',{class:'primary',onclick:function(){openEntry(null,c.id)},text:'Add '+(c.nameLabel||'entry').toLowerCase()}))));
+  }else if(!shown.length){
+    box.append(el('div',{class:'empty'},el('strong',{text:'Nothing matches'}),'Clear the search to see all '+list.length+'.'));
+  }else{
+    box.append(el('div',{class:'list'},shown.map(function(e){return rowFor(e,false)})));
+  }
+  if(state.cats.indexOf(c)>=0){
+    box.append(el('div',{class:'actions',style:'margin-top:22px'},
+      list.length?el('p',{class:'hint',text:'To delete this category, remove its entries first.'})
+        :el('button',{class:'ghost danger',onclick:function(){
+          state.cats=state.cats.filter(function(x){return x.id!==c.id});
+          state.tab='overview';saveCats();
+        },text:'Delete this category'})));
+  }
+}
+function render(){
+  if(!getCat(state.tab)&&state.tab!=='overview')state.tab='overview';
+  renderTabs();
+  var box=$('#content');box.replaceChildren();
+  $('#q').placeholder=state.tab==='overview'?'Search everything':'Search '+(getCat(state.tab)||{label:''}).label.toLowerCase();
+  var st=$('#status');
+  st.textContent=state.mode==='db'?'Saved to this page automatically':state.mode==='local'?'Saved on this device':state.mode==='error'?'Storage is unavailable right now':'Loading your entries';
+  if(!state.ready){box.append(el('p',{class:'hint',text:'Loading…'}));return}
+  if(state.tab==='overview')renderOverview(box);
+  else renderCategory(box,getCat(state.tab));
+}
+
+/* ---------- sheets ---------- */
+var lastFocus=null;
+function openSheet(nodes){
+  lastFocus=document.activeElement;
+  var s=$('#sheet');s.replaceChildren.apply(s,nodes);
+  $('#sheet-root').hidden=false;
+  var f=s.querySelector('input[type=text],input:not([type]),select');if(f)f.focus();
+}
+function closeSheet(){
+  $('#sheet-root').hidden=true;
+  if(lastFocus&&lastFocus.focus)try{lastFocus.focus()}catch(e){}
+}
+function field(label,id,control){
+  return el('div',{class:'field'},el('label',{for:id,text:label}),control);
+}
+function openEntry(entry,presetCat){
+  var editing=!!entry;
+  var cat0=editing?entry.cat:(presetCat||(getCat(state.tab)?state.tab:'purchases'));
+  var catSel=el('select',{id:'f-cat'},allCats().map(function(c){return el('option',{value:c.id,text:c.label})}));
+  catSel.value=cat0;
+  var nameIn=el('input',{id:'f-name',type:'text',autocomplete:'off',maxlength:'120'});
+  var amtIn=el('input',{id:'f-amount',type:'text',inputmode:'decimal',autocomplete:'off',placeholder:'0'});
+  var unitSeg=el('div',{class:'seg',role:'radiogroup','aria-label':'Currency'},
+    el('label',null,el('input',{type:'radio',name:'f-unit',id:'f-unit-cash',value:'$'}),el('span',{text:'$ Cash'})),
+    el('label',null,el('input',{type:'radio',name:'f-unit',id:'f-unit-gold',value:'gold'}),el('span',{text:'Gold'})));
+  var whereIn=el('input',{id:'f-where',type:'text',autocomplete:'off',maxlength:'160'});
+  var dateIn=el('input',{id:'f-date',type:'date'});
+  var noteIn=el('textarea',{id:'f-note',maxlength:'1000'});
+  var errP=el('p',{class:'err',id:'f-err'});
+  var nameF=field('Item','f-name',nameIn);
+  var amtLabel=el('label',{for:'f-amount',text:'Amount'});
+  var amtF=el('div',{class:'pair'},el('div',{class:'field'},amtLabel,amtIn),el('div',{class:'field'},el('span',{class:'lab',text:'Currency'}),unitSeg));
+  var whereF=field('Details','f-where',whereIn);
+  var whereLab=whereF.querySelector('label');
+  var nameLab=nameF.querySelector('label');
+  function apply(){
+    var c=getCat(catSel.value);
+    nameLab.textContent=c.nameLabel||'Name';
+    whereLab.textContent=c.whereLabel||'Details';
+    amtLabel.textContent=c.amountLabel||'Amount';
+    amtF.hidden=!c.amount;
+  }
+  catSel.addEventListener('change',apply);
+  nameIn.value=editing?entry.name:'';
+  amtIn.value=editing&&entry.amount!=null?String(entry.amount):'';
+  var u=editing&&entry.unit==='gold'?'gold':'$';
+  unitSeg.querySelector('input[value="'+u+'"]').checked=true;
+  whereIn.value=editing?(entry.where||''):'';
+  dateIn.value=editing?(entry.date||''):today();
+  noteIn.value=editing?(entry.note||''):'';
+  apply();
+  var delBtn=null;
+  var saveBtn=el('button',{class:'primary',id:'f-save',text:editing?'Save changes':'Add entry',onclick:function(){
+    var name=nameIn.value.trim();
+    if(!name){errP.textContent='Enter a name first.';nameIn.focus();return}
+    var c=getCat(catSel.value);
+    var raw=amtIn.value.replace(/[,$\s]/g,'');
+    var amt=null;
+    if(c.amount&&raw!==''){
+      amt=parseFloat(raw);
+      if(!isFinite(amt)){errP.textContent='Amount must be a number.';amtIn.focus();return}
+    }
+    var unit=sheetUnit();
+    saveBtn.disabled=true;
+    saveEntry({id:editing?entry.id:newId('e'),cat:c.id,name:name,amount:amt,unit:unit,where:whereIn.value.trim(),note:noteIn.value.trim(),date:dateIn.value,ts:editing?(entry.ts||Date.now()):Date.now()})
+      .then(function(ok){if(ok===false){saveBtn.disabled=false;return}closeSheet();toast(editing?'Saved':'Added')});
+  }});
+  function sheetUnit(){var r=unitSeg.querySelector('input:checked');return r?r.value:'$'}
+  var actions=el('div',{class:'actions'},saveBtn,el('button',{class:'ghost',onclick:closeSheet,text:'Cancel'}));
+  if(editing){
+    var armed=false;
+    delBtn=el('button',{class:'ghost danger',id:'f-del',text:'Delete',onclick:function(){
+      if(!armed){armed=true;delBtn.textContent='Tap again to delete';return}
+      removeEntry(entry.id).then(function(ok){if(ok===false)return;closeSheet();toast('Deleted')});
+    }});
+    actions.append(delBtn);
+  }
+  openSheet([el('h3',{text:editing?'Edit entry':'Add entry'}),
+    field('Category','f-cat',catSel),nameF,amtF,whereF,field('Date','f-date',dateIn),field('Note','f-note',noteIn),errP,actions]);
+}
+function openCatSheet(){
+  var nameIn=el('input',{id:'c-name',type:'text',autocomplete:'off',maxlength:'40',placeholder:'For example Vehicles, Weapons, Land'});
+  var errP=el('p',{class:'err'});
+  openSheet([el('h3',{text:'New category'}),
+    el('p',{class:'hint',text:'Each entry gets a name, an optional amount in cash or gold, details, a date and a note.'}),
+    field('Name','c-name',nameIn),errP,
+    el('div',{class:'actions'},
+      el('button',{class:'primary',text:'Create category',onclick:function(){
+        var n=nameIn.value.trim();
+        if(!n){errP.textContent='Enter a name first.';return}
+        if(allCats().some(function(c){return c.label.toLowerCase()===n.toLowerCase()})){errP.textContent='That category already exists.';return}
+        var c={id:newId('c'),label:n,nameLabel:'Name',amount:true,amountLabel:'Value',whereLabel:'Details',empty:'Add the first entry to this category.'};
+        state.cats=state.cats.concat([c]);
+        state.tab=c.id;
+        saveCats();closeSheet();
+      }}),
+      el('button',{class:'ghost',text:'Cancel',onclick:closeSheet}))]);
+}
+
+/* ---------- wiring ---------- */
+$('#fab').addEventListener('click',function(){openEntry(null)});
+$('#scrim').addEventListener('click',closeSheet);
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('#sheet-root').hidden)closeSheet()});
+$('#q').addEventListener('input',function(e){state.q=e.target.value;render()});
+
+try{var t=localStorage.getItem('gtm-ledger-tab');if(t)state.tab=t}catch(e){}
+render();
+
+(async function boot(){
+  try{db=window.claude&&window.claude.use?await window.claude.use('db'):null}catch(e){db=null}
+  if(db){
+    state.mode='db';
+    try{
+      db.collection('entries').onSnapshot(function(snap){
+        state.entries=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});
+        state.ready=true;render();
+      },function(){state.mode='error';state.ready=true;render()});
+      db.doc('meta/config').onSnapshot(function(s){
+        state.cats=s.exists&&s.data()&&Array.isArray(s.data().cats)?s.data().cats:[];
+        render();
+      },function(){});
+    }catch(e){state.mode='error';state.ready=true;render()}
+  }else{
+    state.mode='local';loadLocal();state.ready=true;render();
+  }
+})();
+
+/* ---------- standalone: backup, restore, offline ---------- */
+function saveFile(name,text){
+  var blob=new Blob([text],{type:'application/json'});
+  var u=URL.createObjectURL(blob);
+  var a=document.createElement('a');a.href=u;a.download=name;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(u)},3000);
+}
+$('#backup').addEventListener('click',function(){
+  var data=JSON.stringify({app:'GTM Ledger',exported:new Date().toISOString(),customCategories:state.cats,entries:sorted(state.entries)},null,2);
+  saveFile('gtm-ledger-backup-'+today()+'.json',data);
+  toast('Backup downloaded');
+});
+$('#restore').addEventListener('click',function(){$('#restore-file').click()});
+$('#restore-file').addEventListener('change',function(ev){
+  var f=ev.target.files&&ev.target.files[0];
+  if(!f)return;
+  var r=new FileReader();
+  r.onload=function(){
+    try{
+      var d=JSON.parse(r.result);
+      if(!d||!Array.isArray(d.entries))throw new Error('bad');
+      var known={};state.entries.forEach(function(e,i){known[e.id]=i});
+      var added=0;
+      d.entries.forEach(function(e){
+        if(!e||typeof e.name!=='string'||typeof e.cat!=='string')return;
+        var item={id:e.id||newId('e'),cat:e.cat,name:e.name,amount:typeof e.amount==='number'?e.amount:null,unit:e.unit==='gold'?'gold':'$',where:e.where||'',note:e.note||'',date:e.date||'',ts:e.ts||Date.now()};
+        if(known[item.id]!=null)state.entries[known[item.id]]=item;
+        else{state.entries.push(item);known[item.id]=state.entries.length-1;added++}
+      });
+      (d.customCategories||[]).forEach(function(c){
+        if(c&&c.id&&c.label&&!state.cats.some(function(x){return x.id===c.id}))state.cats.push(c);
+      });
+      persistLocal();render();
+      toast('Restored '+d.entries.length+(d.entries.length===1?' entry':' entries'));
+    }catch(err){toast('That file is not a GTM Ledger backup.')}
+    ev.target.value='';
+  };
+  r.readAsText(f);
+});
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
+  window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});
+}
+})();
+</script>
+</body></html>
