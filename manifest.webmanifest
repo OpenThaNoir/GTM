@@ -1,7 +1,7 @@
 {
   "name": "GTM Ledger",
   "short_name": "GTM Ledger",
-  "description": "Catalog of purchases, houses, cash, gold and accounts.",
+  "description": "Catalog of purchases, houses, cash, gold, giftcards and accounts.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -66,6 +66,7 @@ h1{font-family:var(--display);font-weight:700;font-size:1.6rem;letter-spacing:.0
 .kpi .v{font-family:var(--mono);font-size:1.45rem;font-variant-numeric:tabular-nums;margin-top:2px;overflow-wrap:anywhere}
 .kpi .s{font-size:.78rem;color:var(--muted);margin-top:2px}
 .kpi.gold .v{color:var(--gold)}
+.kpi.gift .v{color:var(--accent)}
 h2{font-family:var(--display);font-size:1.05rem;font-weight:600;margin:22px 0 4px}
 .head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:18px}
 .head h2{margin:0}
@@ -138,7 +139,7 @@ var BASE=[
  {id:'inventory',label:'Inventory',hasQty:true,nameLabel:'Item',amount:true,amountLabel:'Bought for',whereLabel:'Bought from',hint:'Items you own. Quick log adds an item when you buy it and removes it when you sell it.',empty:'Items you buy with the quick log show up here. You can also add things you already own with the Add button.'},
  {id:'sales',label:'Sales',nameLabel:'Item sold',amount:true,amountLabel:'Sold for',whereLabel:'Sold to',empty:'Log what you sell with the price, for example Diamond Sword, $80M, Steve. Try the quick log: I sold my sword for 80M.'},
  {id:'houses',label:'Houses',nameLabel:'House',amount:true,amountLabel:'Size in gold',fixedUnit:'gold',hasOwner:true,hasPaid:true,whereLabel:'Location or coords',hint:'Gold sets the size of a house, for example a 1000 gold house.',empty:'Add each house you own with its size in gold and where it is.'},
- {id:'money',label:'Money & Gold',nameLabel:'Wallet',amount:true,amountLabel:'Balance',whereLabel:'Where it is held',empty:'Add a row for each place you hold cash or gold, such as Wallet, Bank or Chest.'},
+ {id:'money',label:'Money & Gold',nameLabel:'Wallet',amount:true,amountLabel:'Balance',whereLabel:'Where it is held',empty:'Add a row for each place you hold cash, gold or giftcards, such as Wallet, Bank or Chest.'},
  {id:'accounts',label:'Accounts',nameLabel:'Service',amount:false,whereLabel:'Username',empty:'List the services you use with the username and a note. Passwords do not belong here.',hint:'Usernames and notes only. Do not store passwords in this page.'}
 ];
 var state={entries:[],cats:[],tab:'overview',q:'',ready:false,mode:'pending'};
@@ -182,11 +183,13 @@ function short(n){
 }
 function money(n){return '$'+short(n)}
 function goldTxt(n){return short(n)+' gold'}
+function giftTxt(n){return short(n)+' giftcards'}
+function unitTxt(u,n){return u==='gold'?goldTxt(n):u==='giftcards'?giftTxt(n):money(n)}
 function unitOf(e){var c=getCat(e.cat);return (c&&c.fixedUnit)||e.unit||'$'}
 function amtText(e){
   var c=getCat(e.cat);
   if(!c||!c.amount||e.amount==null||e.amount==='')return '';
-  return unitOf(e)==='gold'?goldTxt(e.amount):money(e.amount);
+  return unitTxt(unitOf(e),e.amount);
 }
 function sum(list,unit){return list.reduce(function(t,e){return t+(unitOf(e)===unit&&typeof e.amount==='number'?e.amount:0)},0)}
 function fdate(s){
@@ -282,7 +285,7 @@ function rowFor(e,showCat){
       el('span',{class:'name',text:e.name+((typeof e.qty==='number'&&e.qty>1)?' \u00d7'+e.qty:'')}),
       meta?el('span',{class:'meta',text:meta}):null,
       e.note?el('span',{class:'note',text:e.note}):null),
-    amt?el('span',{class:'amt'+(unitOf(e)==='gold'?' gold':''),text:amt}):null);
+    amt?el('span',{class:'amt'+(unitOf(e)==='gold'?' gold':unitOf(e)==='giftcards'?' gift':''),text:amt}):null);
 }
 function matches(e){
   var q=state.q.trim().toLowerCase();
@@ -294,9 +297,10 @@ function kpi(label,value,sub,cls){
   return el('div',{class:'kpi'+(cls?' '+cls:'')},el('div',{class:'l',text:label}),el('div',{class:'v',text:value}),sub?el('div',{class:'s',text:sub}):null);
 }
 function totalsLine(list){
-  var d=sum(list,'$'),g=sum(list,'gold'),parts=[];
+  var d=sum(list,'$'),g=sum(list,'gold'),gc=sum(list,'giftcards'),parts=[];
   if(d)parts.push(money(d));
   if(g)parts.push(goldTxt(g));
+  if(gc)parts.push(giftTxt(gc));
   return parts.join('  +  ');
 }
 function renderOverview(box){
@@ -311,13 +315,15 @@ function renderOverview(box){
   var E=state.entries;
   var by=function(id){return E.filter(function(e){return e.cat===id})};
   var mon=by('money'),hou=by('houses'),pur=by('purchases'),acc=by('accounts'),sal=by('sales');
-  var spentG=sum(pur,'gold');
+  var spentG=sum(pur,'gold'),spentC=sum(pur,'giftcards');
+  var spentX=[spentG?goldTxt(spentG):'',spentC?giftTxt(spentC):''].filter(Boolean).join(' and ');
   box.append(el('div',{class:'kpis'},
     kpi('Cash',money(sum(mon,'$')),mon.length+(mon.length===1?' balance':' balances')),
     kpi('Gold',goldTxt(sum(mon,'gold')),'across all balances','gold'),
+    kpi('Giftcards',giftTxt(sum(mon,'giftcards')),'across all balances','gift'),
     kpi('Houses',String(hou.length),hou.length?('Total size '+goldTxt(sum(hou,'gold'))):'None logged'),
-    kpi('Spent',money(sum(pur,'$')),spentG?('plus '+goldTxt(spentG)):pur.length+(pur.length===1?' purchase':' purchases')),
-    kpi('Sold',money(sum(sal,'$')),sal.length+(sal.length===1?' sale':' sales')),
+    kpi('Spent',money(sum(pur,'$')),spentX?('plus '+spentX):pur.length+(pur.length===1?' purchase':' purchases')),
+    kpi('Sold',money(sum(sal,'$')),(function(){var x=[sum(sal,'gold')?goldTxt(sum(sal,'gold')):'',sum(sal,'giftcards')?giftTxt(sum(sal,'giftcards')):''].filter(Boolean).join(' and ');return x?('plus '+x):sal.length+(sal.length===1?' sale':' sales')})()),
     kpi('Accounts',String(acc.length),'usernames and notes')));
   if(!E.length){
     box.append(el('div',{class:'empty'},el('strong',{text:'Nothing logged yet'}),
@@ -342,7 +348,7 @@ function renderCategory(box,c){
   if(c.hint)box.append(el('p',{class:'hint',text:c.hint}));
   if(c.id==='inventory'&&list.length)box.append(el('div',{class:'actions'},el('button',{class:'ghost',onclick:function(){exportList(list)},text:'Download list'})));
   if(c.id==='money'){
-    box.append(el('div',{class:'kpis'},kpi('Cash',money(sum(list,'$')),null),kpi('Gold',goldTxt(sum(list,'gold')),null,'gold')));
+    box.append(el('div',{class:'kpis'},kpi('Cash',money(sum(list,'$')),null),kpi('Gold',goldTxt(sum(list,'gold')),null,'gold'),kpi('Giftcards',giftTxt(sum(list,'giftcards')),null,'gift')));
   }
   if(!list.length){
     box.append(el('div',{class:'empty'},el('strong',{text:'No '+c.label.toLowerCase()+' yet'}),c.empty||'Add the first entry to get started.',
@@ -380,13 +386,16 @@ function parseLog(raw){
   var cat='purchases';
   if(/^(?:i\s+)?(?:just\s+|recently\s+)?(?:sold|sell|selling)\b/i.test(t))cat='sales';
   t=t.replace(/^(?:i\s+)?(?:just\s+|recently\s+)?(?:bought|purchased|got|picked up|paid for|buying|buy|spent|sold off|sold|selling|sell)\s+/i,'');
+  var giftFlag=false;
+  var gm=t.match(/\s+(?:in|with|using|via|into)\s+gift\s?cards?\b/i);
+  if(gm){giftFlag=true;t=t.slice(0,gm.index)+t.slice(gm.index+gm[0].length)}
   var acct='';
   var am=t.match(/\s+(?:using|with|via|into)\s+(?:my\s+)?(.+)$/i);
   if(am){acct=am[1].trim();t=t.slice(0,am.index)}
   var where='';
   var fm=t.match(cat==='sales'?/\s+to\s+(.+)$/i:/\s+from\s+(.+)$/i);
   if(fm){where=fm[1].trim();t=t.slice(0,fm.index)}
-  var re=/(\$)?\s*(\d[\d,]*(?:\.\d+)?|\.\d+)\s*(thousand|million|billion|trillion|mil|k|m|b|t)?(?![a-z0-9])\s*(gold|dollars?|bucks|\$)?/ig;
+  var re=/(\$)?\s*(\d[\d,]*(?:\.\d+)?|\.\d+)\s*(thousand|million|billion|trillion|mil|k|m|b|t)?(?![a-z0-9])\s*(gold|gift\s?cards?|dollars?|bucks|\$)?/ig;
   var name='',m=null,idx=t.toLowerCase().lastIndexOf(' for ');
   if(idx>=0){
     name=t.slice(0,idx);re.lastIndex=0;m=re.exec(t.slice(idx+5));
@@ -412,7 +421,8 @@ function parseLog(raw){
   if(each)val*=qty;
   name=name.replace(/[\s,:;-]+$/,'').replace(/\s+(?:for|at|and)$/i,'').trim();
   if(!name)return null;
-  var unit=(m[4]&&m[4].toLowerCase()==='gold')?'gold':'$';
+  var w4=(m[4]||'').toLowerCase().replace(/\s/g,'');
+  var unit=(giftFlag||/^giftcards?$/.test(w4))?'giftcards':w4==='gold'?'gold':'$';
   return {cat:cat,name:name,qty:qty,amount:Math.round(val*100)/100,unit:unit,where:where,acct:acct};
 }
 var dlApi=null;
@@ -444,7 +454,7 @@ $('#quick').addEventListener('submit',function(ev){
   ev.preventDefault();
   var inp=$('#ql'),r=parseLog(inp.value);
   if(!r){toast('Could not read that. Try: I sold 2 swords for 50M');return}
-  var sell=r.cat==='sales',fmt=function(n){return r.unit==='gold'?goldTxt(n):money(n)};
+  var sell=r.cat==='sales',fmt=function(n){return unitTxt(r.unit,n)};
   var bal=pickBalance(r),k=norm(r.name),ops=[];
   var mine=state.entries.filter(function(e){return e.cat==='inventory'&&norm(e.name)===k}).sort(function(a,b){return (a.ts||0)-(b.ts||0)});
   if(sell){
@@ -460,11 +470,11 @@ $('#quick').addEventListener('submit',function(ev){
     });
   }else{
     var bh=bal?(bal.amount||0):0;
-    if(!bal){toast('You have no '+(r.unit==='gold'?'gold':'cash')+' balance yet. Add one under Money & Gold first.');return}
+    if(!bal){toast('You have no '+(r.unit==='gold'?'gold':r.unit==='giftcards'?'giftcard':'cash')+' balance yet. Add one under Money & Gold first.');return}
     if(bh<r.amount){toast('Not enough. '+bal.name+' has '+fmt(bh)+' but this costs '+fmt(r.amount)+'.');return}
   }
   var isNew=!bal;
-  if(isNew)bal={id:newId('e'),cat:'money',name:'Wallet',amount:0,unit:r.unit,where:'',note:'',date:today(),ts:Date.now()};
+  if(isNew)bal={id:newId('e'),cat:'money',name:r.unit==='giftcards'?'Giftcards':'Wallet',amount:0,unit:r.unit,where:'',note:'',date:today(),ts:Date.now()};
   var next=Math.round(((bal.amount||0)+(sell?1:-1)*r.amount)*100)/100;
   var upd=Object.assign({},bal,{amount:next});
   var now=Date.now(),ok=true;
@@ -514,7 +524,8 @@ function openEntry(entry,presetCat){
   var amtIn=el('input',{id:'f-amount',type:'text',inputmode:'decimal',autocomplete:'off',placeholder:'0'});
   var unitSeg=el('div',{class:'seg',role:'radiogroup','aria-label':'Currency'},
     el('label',null,el('input',{type:'radio',name:'f-unit',id:'f-unit-cash',value:'$'}),el('span',{text:'$ Cash'})),
-    el('label',null,el('input',{type:'radio',name:'f-unit',id:'f-unit-gold',value:'gold'}),el('span',{text:'Gold'})));
+    el('label',null,el('input',{type:'radio',name:'f-unit',id:'f-unit-gold',value:'gold'}),el('span',{text:'Gold'})),
+    el('label',null,el('input',{type:'radio',name:'f-unit',id:'f-unit-gift',value:'giftcards'}),el('span',{text:'Giftcards'})));
   var whereIn=el('input',{id:'f-where',type:'text',autocomplete:'off',maxlength:'160'});
   var dateIn=el('input',{id:'f-date',type:'date'});
   var noteIn=el('textarea',{id:'f-note',maxlength:'1000'});
@@ -550,13 +561,13 @@ function openEntry(entry,presetCat){
     qtyF.hidden=!c.hasQty;
     paidF.hidden=!c.hasPaid;
     unitF.hidden=!!c.fixedUnit;
-    amtF.style.gridTemplateColumns=c.fixedUnit?'minmax(0,1fr)':'';
+    amtF.style.gridTemplateColumns='minmax(0,1fr)';
   }
   catSel.addEventListener('change',apply);
   nameIn.value=editing?entry.name:'';
   qtyIn.value=editing&&entry.qty>1?String(entry.qty):'';
   amtIn.value=editing&&entry.amount!=null?String(entry.amount):'';
-  var u=editing&&entry.unit==='gold'?'gold':'$';
+  var u=editing&&(entry.unit==='gold'||entry.unit==='giftcards')?entry.unit:'$';
   unitSeg.querySelector('input[value="'+u+'"]').checked=true;
   whereIn.value=editing?(entry.where||''):'';
   dateIn.value=editing?(entry.date||''):today();
@@ -603,7 +614,7 @@ function openCatSheet(){
   var nameIn=el('input',{id:'c-name',type:'text',autocomplete:'off',maxlength:'40',placeholder:'For example Vehicles, Weapons, Land'});
   var errP=el('p',{class:'err'});
   openSheet([el('h3',{text:'New category'}),
-    el('p',{class:'hint',text:'Each entry gets a name, an optional amount in cash or gold, details, a date and a note.'}),
+    el('p',{class:'hint',text:'Each entry gets a name, an optional amount in cash, gold or giftcards, details, a date and a note.'}),
     field('Name','c-name',nameIn),errP,
     el('div',{class:'actions'},
       el('button',{class:'primary',text:'Create category',onclick:function(){
@@ -672,7 +683,7 @@ $('#restore-file').addEventListener('change',function(ev){
       var added=0;
       d.entries.forEach(function(e){
         if(!e||typeof e.name!=='string'||typeof e.cat!=='string')return;
-        var item={id:e.id||newId('e'),cat:e.cat,name:e.name,amount:typeof e.amount==='number'?e.amount:null,unit:e.unit==='gold'?'gold':'$',ownerId:e.ownerId||null,paid:typeof e.paid==='number'?e.paid:null,paidUnit:e.paidUnit==='gold'?'gold':'$',qty:(typeof e.qty==='number'&&e.qty>0)?e.qty:null,paidText:typeof e.paidText==='string'?e.paidText:'',paidWith:e.paidWith==='giftcards'?'giftcards':'cash',where:e.where||'',note:e.note||'',date:e.date||'',ts:e.ts||Date.now()};
+        var item={id:e.id||newId('e'),cat:e.cat,name:e.name,amount:typeof e.amount==='number'?e.amount:null,unit:(e.unit==='gold'||e.unit==='giftcards')?e.unit:'$',ownerId:e.ownerId||null,paid:typeof e.paid==='number'?e.paid:null,paidUnit:e.paidUnit==='gold'?'gold':'$',qty:(typeof e.qty==='number'&&e.qty>0)?e.qty:null,paidText:typeof e.paidText==='string'?e.paidText:'',paidWith:e.paidWith==='giftcards'?'giftcards':'cash',where:e.where||'',note:e.note||'',date:e.date||'',ts:e.ts||Date.now()};
         if(known[item.id]!=null)state.entries[known[item.id]]=item;
         else{state.entries.push(item);known[item.id]=state.entries.length-1;added++}
       });
