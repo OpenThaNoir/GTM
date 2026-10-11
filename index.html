@@ -136,7 +136,7 @@ input::placeholder,textarea::placeholder{text-transform:capitalize}
 (function(){
 var BASE=[
  {id:'purchases',label:'Purchases',nameLabel:'Item',amount:true,amountLabel:'Price',whereLabel:'Bought from',empty:'Log what you buy with the price and where you got it, for example Iron Chestplate, $4,500, Market stall.'},
- {id:'inventory',label:'Inventory',hasQty:true,nameLabel:'Item',amount:true,amountLabel:'Bought for',whereLabel:'Bought from',hint:'Items you own. Quick log adds an item when you buy it and removes it when you sell it.',empty:'Items you buy with the quick log show up here. You can also add things you already own with the Add button.'},
+ {id:'inventory',label:'Inventory',hasQty:true,nameLabel:'Item',amount:false,whereLabel:'Bought from',hint:'Items you own. Quick log adds an item when you buy it and removes it when you sell it.',empty:'Items you buy with the quick log show up here. You can also add things you already own with the Add button.'},
  {id:'sales',label:'Sales',nameLabel:'Item sold',amount:true,amountLabel:'Sold for',whereLabel:'Sold to',empty:'Log what you sell with the price, for example Diamond Sword, $80M, Steve. Try the quick log: I sold my sword for 80M.'},
  {id:'houses',label:'Houses',nameLabel:'House',amount:true,amountLabel:'Size in gold',fixedUnit:'gold',hasOwner:true,hasPaid:true,whereLabel:'Location or coords',hint:'Gold sets the size of a house, for example a 1000 gold house.',empty:'Add each house you own with its size in gold and where it is.'},
  {id:'money',label:'Balances',nameLabel:'Wallet',amount:true,amountLabel:'Balance',whereLabel:'Where it is held',empty:'Add a row for each place you hold cash, gold or giftcards, such as Wallet, Bank or Chest.'},
@@ -298,6 +298,7 @@ function kpi(label,value,sub,cls){
   return el('div',{class:'kpi'+(cls?' '+cls:'')},el('div',{class:'l',text:label}),el('div',{class:'v',text:value}),sub?el('div',{class:'s',text:sub}):null);
 }
 function totalsLine(list){
+  list=list.filter(function(e){var c=getCat(e.cat);return c&&c.amount});
   var d=sum(list,'$'),g=sum(list,'gold'),gc=sum(list,'giftcards'),parts=[];
   if(d)parts.push(money(d));
   if(g)parts.push(goldTxt(g));
@@ -345,7 +346,7 @@ function renderOverview(box){
 function renderCategory(box,c){
   var list=sorted(state.entries.filter(function(e){return e.cat===c.id}));
   var shown=list.filter(matches);
-  box.append(el('div',{class:'head'},el('h2',{text:c.label}),el('span',{class:'totals',text:totalsLine(list)})));
+  box.append(el('div',{class:'head'},el('h2',{text:c.label}),el('span',{class:'totals',text:c.id==='inventory'?(function(){var n=list.reduce(function(t,e){return t+(e.qty||1)},0);return n+(n===1?' item':' items')})():totalsLine(list)})));
   if(c.hint)box.append(el('p',{class:'hint',text:c.hint}));
   if(c.id==='inventory'&&list.length)box.append(el('div',{class:'actions'},el('button',{class:'ghost',onclick:function(){exportList(list)},text:'Download list'})));
   if(c.id==='money'){
