@@ -454,6 +454,7 @@ $('#quick').addEventListener('submit',function(ev){
   ev.preventDefault();
   var inp=$('#ql'),r=parseLog(inp.value);
   if(!r){toast('Could not read that. Try: I sold 2 swords for 50M');return}
+  if(r.unit==='gold'){toast('Gold can not be logged here. Use cash or giftcards.');return}
   var sell=r.cat==='sales',fmt=function(n){return unitTxt(r.unit,n)};
   var bal=pickBalance(r),k=norm(r.name),ops=[];
   var mine=state.entries.filter(function(e){return e.cat==='inventory'&&norm(e.name)===k}).sort(function(a,b){return (a.ts||0)-(b.ts||0)});
@@ -524,7 +525,7 @@ function openEntry(entry,presetCat){
   var amtIn=el('input',{id:'f-amount',type:'text',inputmode:'decimal',autocomplete:'off',placeholder:'0'});
   var unitSeg=el('div',{class:'seg',role:'radiogroup','aria-label':'Currency'},
     el('label',null,el('input',{type:'radio',name:'f-unit',id:'f-unit-cash',value:'$'}),el('span',{text:'$ Cash'})),
-    el('label',null,el('input',{type:'radio',name:'f-unit',id:'f-unit-gold',value:'gold'}),el('span',{text:'Gold'})),
+    (editing&&entry.unit==='gold')?el('label',null,el('input',{type:'radio',name:'f-unit',id:'f-unit-gold',value:'gold'}),el('span',{text:'Gold'})):null,
     el('label',null,el('input',{type:'radio',name:'f-unit',id:'f-unit-gift',value:'giftcards'}),el('span',{text:'Giftcards'})));
   var whereIn=el('input',{id:'f-where',type:'text',autocomplete:'off',maxlength:'160'});
   var dateIn=el('input',{id:'f-date',type:'date'});
