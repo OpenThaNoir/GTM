@@ -139,7 +139,7 @@ var BASE=[
  {id:'inventory',label:'Inventory',hasQty:true,nameLabel:'Item',amount:true,amountLabel:'Bought for',whereLabel:'Bought from',hint:'Items you own. Quick log adds an item when you buy it and removes it when you sell it.',empty:'Items you buy with the quick log show up here. You can also add things you already own with the Add button.'},
  {id:'sales',label:'Sales',nameLabel:'Item sold',amount:true,amountLabel:'Sold for',whereLabel:'Sold to',empty:'Log what you sell with the price, for example Diamond Sword, $80M, Steve. Try the quick log: I sold my sword for 80M.'},
  {id:'houses',label:'Houses',nameLabel:'House',amount:true,amountLabel:'Size in gold',fixedUnit:'gold',hasOwner:true,hasPaid:true,whereLabel:'Location or coords',hint:'Gold sets the size of a house, for example a 1000 gold house.',empty:'Add each house you own with its size in gold and where it is.'},
- {id:'money',label:'Money & Gold',nameLabel:'Wallet',amount:true,amountLabel:'Balance',whereLabel:'Where it is held',empty:'Add a row for each place you hold cash, gold or giftcards, such as Wallet, Bank or Chest.'},
+ {id:'money',label:'Balances',nameLabel:'Wallet',amount:true,amountLabel:'Balance',whereLabel:'Where it is held',empty:'Add a row for each place you hold cash, gold or giftcards, such as Wallet, Bank or Chest.'},
  {id:'accounts',label:'Accounts',nameLabel:'Service',amount:false,whereLabel:'Username',empty:'List the services you use with the username and a note. Passwords do not belong here.',hint:'Usernames and notes only. Do not store passwords in this page.'}
 ];
 var state={entries:[],cats:[],tab:'overview',q:'',ready:false,mode:'pending'};
@@ -184,6 +184,7 @@ function short(n){
 function money(n){return '$'+short(n)}
 function goldTxt(n){return short(n)+' gold'}
 function giftTxt(n){return short(n)+' giftcards'}
+function gcTxt(n){return short(n)+' Gc'}
 function unitTxt(u,n){return u==='gold'?goldTxt(n):u==='giftcards'?giftTxt(n):money(n)}
 function unitOf(e){var c=getCat(e.cat);return (c&&c.fixedUnit)||e.unit||'$'}
 function amtText(e){
@@ -300,7 +301,7 @@ function totalsLine(list){
   var d=sum(list,'$'),g=sum(list,'gold'),gc=sum(list,'giftcards'),parts=[];
   if(d)parts.push(money(d));
   if(g)parts.push(goldTxt(g));
-  if(gc)parts.push(giftTxt(gc));
+  if(gc)parts.push(gcTxt(gc));
   return parts.join('  +  ');
 }
 function renderOverview(box){
@@ -316,18 +317,18 @@ function renderOverview(box){
   var by=function(id){return E.filter(function(e){return e.cat===id})};
   var mon=by('money'),hou=by('houses'),pur=by('purchases'),acc=by('accounts'),sal=by('sales');
   var spentG=sum(pur,'gold'),spentC=sum(pur,'giftcards');
-  var spentX=[spentG?goldTxt(spentG):'',spentC?giftTxt(spentC):''].filter(Boolean).join(' and ');
+  var spentX=[spentG?goldTxt(spentG):'',spentC?gcTxt(spentC):''].filter(Boolean).join(' and ');
   box.append(el('div',{class:'kpis'},
     kpi('Cash',money(sum(mon,'$')),mon.length+(mon.length===1?' balance':' balances')),
     kpi('Gold',goldTxt(sum(mon,'gold')),'across all balances','gold'),
-    kpi('Giftcards',giftTxt(sum(mon,'giftcards')),'across all balances','gift'),
+    kpi('Giftcards',gcTxt(sum(mon,'giftcards')),'across all balances','gift'),
     kpi('Houses',String(hou.length),hou.length?('Total size '+goldTxt(sum(hou,'gold'))):'None logged'),
     kpi('Spent',money(sum(pur,'$')),spentX?('plus '+spentX):pur.length+(pur.length===1?' purchase':' purchases')),
-    kpi('Sold',money(sum(sal,'$')),(function(){var x=[sum(sal,'gold')?goldTxt(sum(sal,'gold')):'',sum(sal,'giftcards')?giftTxt(sum(sal,'giftcards')):''].filter(Boolean).join(' and ');return x?('plus '+x):sal.length+(sal.length===1?' sale':' sales')})()),
+    kpi('Sold',money(sum(sal,'$')),(function(){var x=[sum(sal,'gold')?goldTxt(sum(sal,'gold')):'',sum(sal,'giftcards')?gcTxt(sum(sal,'giftcards')):''].filter(Boolean).join(' and ');return x?('plus '+x):sal.length+(sal.length===1?' sale':' sales')})()),
     kpi('Accounts',String(acc.length),'usernames and notes')));
   if(!E.length){
     box.append(el('div',{class:'empty'},el('strong',{text:'Nothing logged yet'}),
-      'Start with your balances under Money & Gold, then add houses, purchases and accounts. Everything here saves automatically.',
+      'Start with your balances under Balances, then add houses, purchases and accounts. Everything here saves automatically.',
       el('div',{class:'actions'},el('button',{class:'primary',onclick:function(){openEntry(null,'money')},text:'Add a balance'}))));
     return;
   }
@@ -348,7 +349,7 @@ function renderCategory(box,c){
   if(c.hint)box.append(el('p',{class:'hint',text:c.hint}));
   if(c.id==='inventory'&&list.length)box.append(el('div',{class:'actions'},el('button',{class:'ghost',onclick:function(){exportList(list)},text:'Download list'})));
   if(c.id==='money'){
-    box.append(el('div',{class:'kpis'},kpi('Cash',money(sum(list,'$')),null),kpi('Gold',goldTxt(sum(list,'gold')),null,'gold'),kpi('Giftcards',giftTxt(sum(list,'giftcards')),null,'gift')));
+    box.append(el('div',{class:'kpis'},kpi('Cash',money(sum(list,'$')),null),kpi('Gold',goldTxt(sum(list,'gold')),null,'gold'),kpi('Giftcards',gcTxt(sum(list,'giftcards')),null,'gift')));
   }
   if(!list.length){
     box.append(el('div',{class:'empty'},el('strong',{text:'No '+c.label.toLowerCase()+' yet'}),c.empty||'Add the first entry to get started.',
@@ -471,7 +472,7 @@ $('#quick').addEventListener('submit',function(ev){
     });
   }else{
     var bh=bal?(bal.amount||0):0;
-    if(!bal){toast('You have no '+(r.unit==='gold'?'gold':r.unit==='giftcards'?'giftcard':'cash')+' balance yet. Add one under Money & Gold first.');return}
+    if(!bal){toast('You have no '+(r.unit==='gold'?'gold':r.unit==='giftcards'?'giftcard':'cash')+' balance yet. Add one under Balances first.');return}
     if(bh<r.amount){toast('Not enough. '+bal.name+' has '+fmt(bh)+' but this costs '+fmt(r.amount)+'.');return}
   }
   var isNew=!bal;
@@ -523,8 +524,10 @@ function openEntry(entry,presetCat){
   catSel.value=cat0;
   var nameIn=el('input',{id:'f-name',type:'text',autocomplete:'off',maxlength:'120'});
   var amtIn=el('input',{id:'f-amount',type:'text',inputmode:'decimal',autocomplete:'off',placeholder:'0'});
+  var goldLab=el('label',null,el('input',{type:'radio',name:'f-unit',id:'f-unit-gold',value:'gold'}),el('span',{text:'Gold'}));
   var unitSeg=el('div',{class:'seg',role:'radiogroup','aria-label':'Currency'},
     el('label',null,el('input',{type:'radio',name:'f-unit',id:'f-unit-cash',value:'$'}),el('span',{text:'$ Cash'})),
+    goldLab,
     el('label',null,el('input',{type:'radio',name:'f-unit',id:'f-unit-gift',value:'giftcards'}),el('span',{text:'Giftcards'})));
   var whereIn=el('input',{id:'f-where',type:'text',autocomplete:'off',maxlength:'160'});
   var dateIn=el('input',{id:'f-date',type:'date'});
@@ -559,6 +562,8 @@ function openEntry(entry,presetCat){
     amtF.hidden=!c.amount;
     ownerF.hidden=!c.hasOwner;
     qtyF.hidden=!c.hasQty;
+    goldLab.hidden=c.id!=='money';
+    if(goldLab.hidden&&goldLab.querySelector('input').checked)unitSeg.querySelector('input[value="$"]').checked=true;
     paidF.hidden=!c.hasPaid;
     unitF.hidden=!!c.fixedUnit;
     amtF.style.gridTemplateColumns='minmax(0,1fr)';
@@ -567,7 +572,7 @@ function openEntry(entry,presetCat){
   nameIn.value=editing?entry.name:'';
   qtyIn.value=editing&&entry.qty>1?String(entry.qty):'';
   amtIn.value=editing&&entry.amount!=null?String(entry.amount):'';
-  var u=editing&&(entry.unit==='gold'||entry.unit==='giftcards')?'giftcards':'$';
+  var u=editing&&entry.unit==='giftcards'?'giftcards':(editing&&entry.unit==='gold'?(entry.cat==='money'?'gold':'giftcards'):'$');
   unitSeg.querySelector('input[value="'+u+'"]').checked=true;
   whereIn.value=editing?(entry.where||''):'';
   dateIn.value=editing?(entry.date||''):today();
