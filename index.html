@@ -54,6 +54,11 @@ h1{font-family:var(--display);font-weight:700;font-size:1.6rem;letter-spacing:.0
 .tabs::-webkit-scrollbar{display:none}
 .chip{flex:none;background:var(--chip);border:1px solid transparent;border-radius:999px;padding:7px 14px;cursor:pointer;font-weight:500;white-space:nowrap}
 .chip.on{background:var(--accent);color:var(--accent-fg)}
+.tabmenu{position:fixed;z-index:30;min-width:170px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:0 8px 28px rgba(0,0,0,.22);display:flex;flex-direction:column}
+.tabmenu .mi{background:transparent;border:0;border-radius:8px;padding:11px 12px;text-align:left;font-size:1rem;color:var(--fg);cursor:pointer}
+.tabmenu .mi:hover,.tabmenu .mi:focus-visible{background:var(--chip)}
+.tabmenu .mi.on{background:var(--accent);color:var(--accent-fg);font-weight:600}
+.tabmenu .mi.add{color:var(--muted);border-top:1px solid var(--line);border-radius:0 0 8px 8px;margin-top:4px}
 .chip.add{background:transparent;border:1px dashed var(--line);color:var(--muted)}
 .quick{display:flex;gap:8px;margin-bottom:8px}
 .quick input{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:16px}
@@ -261,12 +266,62 @@ function setTab(id){
   try{localStorage.setItem('gtm-ledger-tab',id)}catch(e){}
   render();window.scrollTo(0,0);
 }
+var GROUPS=[
+  {label:'Money',ids:['money','history']},
+  {label:'Trading',ids:['purchases','sales']},
+  {label:'Assets',ids:['inventory','houses']}
+];
+var menuEl=null,menuFor=null;
+function closeMenu(){
+  if(menuEl){menuEl.remove();menuEl=null}
+  if(menuFor){menuFor.setAttribute('aria-expanded','false');menuFor=null}
+}
+function openMenu(chip,items){
+  if(menuFor===chip){closeMenu();return}
+  closeMenu();
+  menuEl=el('div',{class:'tabmenu',role:'menu'},items.map(function(it){
+    return el('button',{class:'mi'+(it.on?' on':'')+(it.add?' add':''),role:'menuitem',onclick:function(){closeMenu();it.go()},text:it.label});
+  }));
+  document.body.append(menuEl);
+  chip.setAttribute('aria-expanded','true');menuFor=chip;
+  placeMenu();
+}
+function placeMenu(){
+  if(!menuEl||!menuFor)return;
+  var r=menuFor.getBoundingClientRect(),w=menuEl.offsetWidth;
+  menuEl.style.top=(r.bottom+6)+'px';
+  menuEl.style.left=Math.max(8,Math.min(r.left,window.innerWidth-w-8))+'px';
+}
+$('#tabs').addEventListener('scroll',placeMenu);
+document.addEventListener('click',function(ev){
+  if(!menuEl)return;
+  if(menuEl.contains(ev.target)||(menuFor&&menuFor.contains(ev.target)))return;
+  closeMenu();
+});
+document.addEventListener('keydown',function(ev){if(ev.key==='Escape')closeMenu()});
+window.addEventListener('resize',closeMenu);
 function renderTabs(){
+  closeMenu();
   var box=$('#tabs');box.replaceChildren();
-  [{id:'overview',label:'Overview'}].concat(allCats()).forEach(function(c){
-    box.append(el('button',{class:'chip'+(state.tab===c.id?' on':''),role:'tab','aria-selected':String(state.tab===c.id),onclick:function(){setTab(c.id)},text:c.label}));
+  box.append(el('button',{class:'chip'+(state.tab==='overview'?' on':''),role:'tab','aria-selected':String(state.tab==='overview'),onclick:function(){setTab('overview')},text:'Overview'}));
+  var used={};
+  function group(label,cats,extra){
+    var on=cats.some(function(c){return c.id===state.tab});
+    var chip=el('button',{class:'chip drop'+(on?' on':''),'aria-haspopup':'menu','aria-expanded':'false',text:label+' ▾'});
+    chip.addEventListener('click',function(){
+      var items=cats.map(function(c){return {label:c.label,on:state.tab===c.id,go:function(){setTab(c.id)}}});
+      if(extra)items.push(extra);
+      openMenu(chip,items);
+    });
+    box.append(chip);
+  }
+  GROUPS.forEach(function(g){
+    var cats=g.ids.map(getCat).filter(Boolean);
+    cats.forEach(function(c){used[c.id]=1});
+    if(cats.length)group(g.label,cats);
   });
-  box.append(el('button',{class:'chip add',onclick:openCatSheet,text:'+ Category'}));
+  var rest=allCats().filter(function(c){return !used[c.id]});
+  group('Other',rest,{label:'+ New category',add:true,go:openCatSheet});
 }
 function ownerName(e){
   if(!e.ownerId)return '';
