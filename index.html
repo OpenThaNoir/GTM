@@ -535,6 +535,14 @@ function openEntry(entry,presetCat){
   var dateIn=el('input',{id:'f-date',type:'date'});
   var noteIn=el('textarea',{id:'f-note',maxlength:'1000'});
   var errP=el('p',{class:'err',id:'f-err'});
+  var modeSegE=el('div',{class:'seg',role:'radiogroup','aria-label':'What to do'},
+    el('label',null,el('input',{type:'radio',name:'f-mode',id:'f-mode-new',value:'new'}),el('span',{text:'New balance'})),
+    el('label',null,el('input',{type:'radio',name:'f-mode',id:'f-mode-adj',value:'adjust'}),el('span',{text:'Add or remove'})));
+  modeSegE.querySelector('#f-mode-new').checked=true;
+  var modeF=el('div',{class:'field'},el('span',{class:'lab',text:'Balances'}),modeSegE);
+  modeSegE.addEventListener('change',function(){
+    if(modeSegE.querySelector('input:checked').value==='adjust'&&openAdjust()===false)modeSegE.querySelector('#f-mode-new').checked=true;
+  });
   var nameF=field('Item','f-name',nameIn);
   var amtLabel=el('label',{for:'f-amount',text:'Amount'});
   var unitF=el('div',{class:'field'},el('span',{class:'lab',text:'Currency'}),unitSeg);
@@ -564,6 +572,7 @@ function openEntry(entry,presetCat){
     amtF.hidden=!c.amount;
     ownerF.hidden=!c.hasOwner;
     qtyF.hidden=!c.hasQty;
+    modeF.hidden=editing||c.id!=='money';
     goldLab.hidden=c.id!=='money';
     if(goldLab.hidden&&goldLab.querySelector('input').checked)unitSeg.querySelector('input[value="$"]').checked=true;
     paidF.hidden=!c.hasPaid;
@@ -615,7 +624,7 @@ function openEntry(entry,presetCat){
     actions.append(delBtn);
   }
   openSheet([el('h3',{text:editing?'Edit entry':'Add entry'}),
-    field('Category','f-cat',catSel),nameF,qtyF,amtF,ownerF,paidF,whereF,field('Date','f-date',dateIn),field('Note','f-note',noteIn),errP,actions]);
+    field('Category','f-cat',catSel),modeF,nameF,qtyF,amtF,ownerF,paidF,whereF,field('Date','f-date',dateIn),field('Note','f-note',noteIn),errP,actions]);
 }
 function parseAmount(str){
   var m=String(str||'').trim().match(/^\$?\s*(\d[\d,]*(?:\.\d+)?|\.\d+)\s*(thousand|million|billion|trillion|mil|k|m|b|t)?\s*(?:\$|gc|giftcards?|gold|dollars?)?$/i);
@@ -626,14 +635,19 @@ function parseAmount(str){
 }
 function openAdjust(){
   var bals=sorted(state.entries.filter(function(e){return e.cat==='money'}));
-  if(!bals.length){toast('Add a balance first.');return}
+  if(!bals.length){toast('Add a balance first.');return false}
   var sel=el('select',{id:'adj-bal'},bals.map(function(e){return el('option',{value:e.id,text:e.name+' ('+unitTxt(unitOf(e),e.amount||0)+')'})}));
-  var cur=state.tab==='money'?null:null;
   var amt=el('input',{id:'adj-amt',type:'text',inputmode:'text',autocomplete:'off',maxlength:'30',placeholder:'Example: 50M or 2.5B'});
   var seg=el('div',{class:'seg',role:'radiogroup','aria-label':'Add or remove'},
     el('label',null,el('input',{type:'radio',name:'adj-mode',id:'adj-add',value:'add'}),el('span',{text:'Add'})),
     el('label',null,el('input',{type:'radio',name:'adj-mode',id:'adj-rem',value:'remove'}),el('span',{text:'Remove'})));
   seg.querySelector('#adj-add').checked=true;
+  var forIn=el('input',{id:'adj-for',type:'text',autocomplete:'off',maxlength:'120',placeholder:'Example: Fuel, Skin crate (optional)'});
+  var modeSeg=el('div',{class:'seg',role:'radiogroup','aria-label':'What to do'},
+    el('label',null,el('input',{type:'radio',name:'adj-mode2',id:'adj-m-new',value:'new'}),el('span',{text:'New balance'})),
+    el('label',null,el('input',{type:'radio',name:'adj-mode2',id:'adj-m-adj',value:'adjust'}),el('span',{text:'Add or remove'})));
+  modeSeg.querySelector('#adj-m-adj').checked=true;
+  modeSeg.addEventListener('change',function(){if(modeSeg.querySelector('input:checked').value==='new')openEntry(null,'money')});
   var err=el('p',{class:'err',id:'adj-err'});
   var save=el('button',{class:'primary',id:'adj-save',text:'Save',onclick:function(){
     var e=state.entries.filter(function(x){return x.id===sel.value})[0];
@@ -644,12 +658,17 @@ function openAdjust(){
     if(!add&&v>have){err.textContent='Not enough. '+e.name+' has '+unitTxt(u,have)+'.';return}
     var next=Math.round((have+(add?v:-v))*100)/100;
     save.disabled=true;
+    var why=forIn.value.trim();
     saveEntry(Object.assign({},e,{amount:next})).then(function(ok){
+      if(ok===false)return false;
+      if(!why)return true;
+      return saveEntry({id:newId('e'),cat:add?'sales':'purchases',name:why,qty:null,amount:v,unit:u,where:'',note:'',date:today(),ts:Date.now()});
+    }).then(function(ok){
       if(ok===false){save.disabled=false;return}
       closeSheet();toast((add?'Added ':'Removed ')+unitTxt(u,v)+(add?' to ':' from ')+e.name+'. Now '+unitTxt(u,next));
     });
   }});
-  openSheet([el('h3',{text:'Add or remove'}),field('Balance','adj-bal',sel),el('div',{class:'field'},el('span',{class:'lab',text:'Action'}),seg),field('Amount','adj-amt',amt),err,
+  openSheet([el('h3',{text:'Add entry'}),el('div',{class:'field'},el('span',{class:'lab',text:'Balances'}),modeSeg),field('Balance','adj-bal',sel),el('div',{class:'field'},el('span',{class:'lab',text:'Action'}),seg),field('Amount','adj-amt',amt),field('What for','adj-for',forIn),el('p',{class:'hint',text:'If you fill in What for, it is also logged under Purchases when you remove money, or Sales when you add it.'}),err,
     el('div',{class:'actions'},save,el('button',{class:'ghost',onclick:closeSheet,text:'Cancel'}))]);
 }
 function openCatSheet(){
