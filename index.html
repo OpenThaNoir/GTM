@@ -525,7 +525,6 @@ function openEntry(entry,presetCat){
   var amtIn=el('input',{id:'f-amount',type:'text',inputmode:'decimal',autocomplete:'off',placeholder:'0'});
   var unitSeg=el('div',{class:'seg',role:'radiogroup','aria-label':'Currency'},
     el('label',null,el('input',{type:'radio',name:'f-unit',id:'f-unit-cash',value:'$'}),el('span',{text:'$ Cash'})),
-    (editing&&entry.unit==='gold')?el('label',null,el('input',{type:'radio',name:'f-unit',id:'f-unit-gold',value:'gold'}),el('span',{text:'Gold'})):null,
     el('label',null,el('input',{type:'radio',name:'f-unit',id:'f-unit-gift',value:'giftcards'}),el('span',{text:'Giftcards'})));
   var whereIn=el('input',{id:'f-where',type:'text',autocomplete:'off',maxlength:'160'});
   var dateIn=el('input',{id:'f-date',type:'date'});
@@ -568,7 +567,7 @@ function openEntry(entry,presetCat){
   nameIn.value=editing?entry.name:'';
   qtyIn.value=editing&&entry.qty>1?String(entry.qty):'';
   amtIn.value=editing&&entry.amount!=null?String(entry.amount):'';
-  var u=editing&&(entry.unit==='gold'||entry.unit==='giftcards')?entry.unit:'$';
+  var u=editing&&(entry.unit==='gold'||entry.unit==='giftcards')?'giftcards':'$';
   unitSeg.querySelector('input[value="'+u+'"]').checked=true;
   whereIn.value=editing?(entry.where||''):'';
   dateIn.value=editing?(entry.date||''):today();
