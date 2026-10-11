@@ -1,4 +1,4 @@
-const CACHE = 'gtm-ledger-v19';
+const CACHE = 'gtm-ledger-v20';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -11,11 +11,11 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   const u = new URL(req.url);
   if (u.origin === location.origin) {
-    e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(res => {
+    e.respondWith(fetch(req).then(res => {
       const copy = res.clone();
       caches.open(CACHE).then(c => c.put(req, copy));
       return res;
-    }).catch(() => caches.match('./index.html'))));
+    }).catch(() => caches.match(req).then(hit => hit || caches.match('./index.html'))));
   } else if (u.hostname === 'fonts.googleapis.com' || u.hostname === 'fonts.gstatic.com') {
     e.respondWith(caches.open('gtm-fonts').then(c => c.match(req).then(hit => hit || fetch(req).then(res => {
       c.put(req, res.clone());
