@@ -81,6 +81,7 @@ h2{font-family:var(--display);font-size:1.05rem;font-weight:600;margin:22px 0 4p
 .row .note{font-size:.82rem;color:var(--muted);overflow-wrap:anywhere;margin-top:2px}
 .row .amt{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:1px}
 .row .amt.gold,.gold-text{color:var(--gold)}
+.row .amt.neg{color:var(--danger)}
 .cat-row .meta{font-family:var(--mono)}
 .empty{border:1px dashed var(--line);border-radius:10px;padding:20px 16px;margin-top:12px;color:var(--muted)}
 .empty strong{display:block;color:var(--fg);font-family:var(--display);font-size:1.05rem;margin-bottom:4px}
@@ -140,6 +141,7 @@ var BASE=[
  {id:'sales',label:'Sales',nameLabel:'Item sold',amount:true,amountLabel:'Sold for',whereLabel:'Sold to',empty:'Log what you sell with the price, for example Diamond Sword, $80M, Steve. Try the quick log: I sold my sword for 80M.'},
  {id:'houses',label:'Houses',nameLabel:'House',amount:true,amountLabel:'Size in gold',fixedUnit:'gold',hasOwner:true,hasPaid:true,whereLabel:'Location or coords',hint:'Gold sets the size of a house, for example a 1000 gold house.',empty:'Add each house you own with its size in gold and where it is.'},
  {id:'money',label:'Balances',nameLabel:'Wallet',amount:true,amountLabel:'Balance',whereLabel:'Where it is held',empty:'Add a row for each place you hold cash, gold or giftcards, such as Wallet, Bank or Chest.'},
+ {id:'history',label:'History',hist:true,amount:false,nameLabel:'What',whereLabel:'Balance',hint:'Every change to a balance is recorded here automatically.',empty:'Changes to your balances will show up here, like buying, selling, adding and removing money.'},
  {id:'accounts',label:'Accounts',nameLabel:'Service',amount:false,whereLabel:'Username',empty:'List the services you use with the username and a note. Passwords do not belong here.',hint:'Usernames and notes only. Do not store passwords in this page.'}
 ];
 var state={entries:[],cats:[],tab:'overview',q:'',ready:false,mode:'pending'};
@@ -189,6 +191,7 @@ function unitTxt(u,n){return u==='gold'?goldTxt(n):u==='giftcards'?giftTxt(n):mo
 function unitOf(e){var c=getCat(e.cat);return (c&&c.fixedUnit)||e.unit||'$'}
 function amtText(e){
   var c=getCat(e.cat);
+  if(c&&c.hist&&typeof e.amount==='number')return (e.amount<0?'\u2212':'+')+unitTxt(unitOf(e),Math.abs(e.amount));
   if(!c||!c.amount||e.amount==null||e.amount==='')return '';
   return unitTxt(unitOf(e),e.amount);
 }
@@ -286,7 +289,7 @@ function rowFor(e,showCat){
       el('span',{class:'name',text:e.name+((typeof e.qty==='number'&&e.qty>1)?' \u00d7'+e.qty:'')}),
       meta?el('span',{class:'meta',text:meta}):null,
       e.note?el('span',{class:'note',text:e.note}):null),
-    amt?el('span',{class:'amt'+(unitOf(e)==='gold'?' gold':unitOf(e)==='giftcards'?' gift':''),text:amt}):null);
+    amt?el('span',{class:'amt'+(unitOf(e)==='gold'?' gold':unitOf(e)==='giftcards'?' gift':'')+((c.hist&&e.amount<0)?' neg':''),text:amt}):null);
 }
 function matches(e){
   var q=state.q.trim().toLowerCase();
@@ -346,7 +349,7 @@ function renderOverview(box){
 function renderCategory(box,c){
   var list=sorted(state.entries.filter(function(e){return e.cat===c.id}));
   var shown=list.filter(matches);
-  box.append(el('div',{class:'head'},el('h2',{text:c.label}),el('span',{class:'totals',text:c.id==='inventory'?(function(){var n=list.reduce(function(t,e){return t+(e.qty||1)},0);return n+(n===1?' item':' items')})():totalsLine(list)})));
+  box.append(el('div',{class:'head'},el('h2',{text:c.label}),el('span',{class:'totals',text:c.hist?(list.length+(list.length===1?' change':' changes')):c.id==='inventory'?(function(){var n=list.reduce(function(t,e){return t+(e.qty||1)},0);return n+(n===1?' item':' items')})():totalsLine(list)})));
   if(c.hint)box.append(el('p',{class:'hint',text:c.hint}));
   if(c.id==='inventory'&&list.length)box.append(el('div',{class:'actions'},el('button',{class:'ghost',onclick:function(){exportList(list)},text:'Download list'})));
   if(c.id==='money'&&list.length)box.append(el('div',{class:'actions'},el('button',{class:'primary',id:'adjust-btn',onclick:openAdjust,text:'Add or remove'})));
@@ -485,6 +488,7 @@ $('#quick').addEventListener('submit',function(ev){
   function step(f){return Promise.resolve(ok).then(function(o){if(!o)return false;return f()}).then(function(v){if(v===false)ok=false;return ok})}
   step(function(){return saveEntry({id:newId('e'),cat:r.cat,name:r.name,qty:r.qty,amount:r.amount,unit:r.unit,where:r.where,note:'',date:today(),ts:now})})
   .then(function(){return step(function(){return saveEntry(upd)})})
+  .then(function(){return step(function(){return logChange(upd,sell?r.amount:-r.amount,(sell?'Sold ':'Bought ')+(r.qty>1?r.qty+' ':'')+r.name)})})
   .then(function(){
     if(sell){
       var chain=Promise.resolve(ok);
@@ -522,7 +526,7 @@ function field(label,id,control){
 function openEntry(entry,presetCat){
   var editing=!!entry;
   var cat0=editing?entry.cat:(presetCat||(getCat(state.tab)?state.tab:'purchases'));
-  var catSel=el('select',{id:'f-cat'},allCats().map(function(c){return el('option',{value:c.id,text:c.label})}));
+  var catSel=el('select',{id:'f-cat'},allCats().filter(function(c){return !c.hist||(editing&&entry.cat===c.id)}).map(function(c){return el('option',{value:c.id,text:c.label})}));
   catSel.value=cat0;
   var nameIn=el('input',{id:'f-name',type:'text',autocomplete:'off',maxlength:'120'});
   var amtIn=el('input',{id:'f-amount',type:'text',inputmode:'decimal',autocomplete:'off',placeholder:'0'});
@@ -611,6 +615,12 @@ function openEntry(entry,presetCat){
     if(c.hasQty&&qtyIn.value.trim()!==''){qn=parseInt(qtyIn.value.replace(/[,\s]/g,''),10);if(!(qn>=1)){errP.textContent='Quantity must be a whole number, 1 or more.';qtyIn.focus();return}}
     saveBtn.disabled=true;
     saveEntry({id:editing?entry.id:newId('e'),cat:c.id,name:name,qty:qn,amount:amt,unit:unit,ownerId:(c.hasOwner&&ownerSel.value)?ownerSel.value:null,paidText:paidText,paidWith:pu?pu.value:'cash',where:whereIn.value.trim(),note:noteIn.value.trim(),date:dateIn.value,ts:editing?(entry.ts||Date.now()):Date.now()})
+      .then(function(ok){
+        if(ok===false)return false;
+        if(c.id!=='money')return true;
+        var d=(typeof amt==='number'?amt:0)-((editing&&typeof entry.amount==='number')?entry.amount:0);
+        return logChange({name:name,unit:unit,cat:'money'},d,editing?'Balance edited':'New balance');
+      })
       .then(function(ok){if(ok===false){saveBtn.disabled=false;return}closeSheet();toast(editing?'Saved':'Added')});
   }});
   function sheetUnit(){var r=unitSeg.querySelector('input:checked');return r?r.value:'$'}
@@ -625,6 +635,10 @@ function openEntry(entry,presetCat){
   }
   openSheet([el('h3',{text:editing?'Edit entry':'Add entry'}),
     field('Category','f-cat',catSel),modeF,nameF,qtyF,amtF,ownerF,paidF,whereF,field('Date','f-date',dateIn),field('Note','f-note',noteIn),errP,actions]);
+}
+function logChange(bal,delta,why){
+  if(!delta)return Promise.resolve(true);
+  return saveEntry({id:newId('e'),cat:'history',name:why,qty:null,amount:Math.round(delta*100)/100,unit:unitOf(bal),where:bal.name,note:'',date:today(),ts:Date.now()});
 }
 function parseAmount(str){
   var m=String(str||'').trim().match(/^\$?\s*(\d[\d,]*(?:\.\d+)?|\.\d+)\s*(thousand|million|billion|trillion|mil|k|m|b|t)?\s*(?:\$|gc|giftcards?|gold|dollars?)?$/i);
@@ -661,7 +675,9 @@ function openAdjust(){
     var why=forIn.value.trim();
     saveEntry(Object.assign({},e,{amount:next})).then(function(ok){
       if(ok===false)return false;
-      if(!why)return true;
+      return logChange(e,add?v:-v,why||(add?'Added money':'Removed money'));
+    }).then(function(ok){
+      if(ok===false||!why)return ok;
       return saveEntry({id:newId('e'),cat:add?'sales':'purchases',name:why,qty:null,amount:v,unit:u,where:'',note:'',date:today(),ts:Date.now()});
     }).then(function(ok){
       if(ok===false){save.disabled=false;return}
