@@ -349,6 +349,7 @@ function renderCategory(box,c){
   box.append(el('div',{class:'head'},el('h2',{text:c.label}),el('span',{class:'totals',text:c.id==='inventory'?(function(){var n=list.reduce(function(t,e){return t+(e.qty||1)},0);return n+(n===1?' item':' items')})():totalsLine(list)})));
   if(c.hint)box.append(el('p',{class:'hint',text:c.hint}));
   if(c.id==='inventory'&&list.length)box.append(el('div',{class:'actions'},el('button',{class:'ghost',onclick:function(){exportList(list)},text:'Download list'})));
+  if(c.id==='money'&&list.length)box.append(el('div',{class:'actions'},el('button',{class:'primary',id:'adjust-btn',onclick:openAdjust,text:'Add or remove'})));
   if(c.id==='money'){
     box.append(el('div',{class:'kpis'},kpi('Cash',money(sum(list,'$')),null),kpi('Gold',goldTxt(sum(list,'gold')),null,'gold'),kpi('Giftcards',gcTxt(sum(list,'giftcards')),null,'gift')));
   }
@@ -615,6 +616,41 @@ function openEntry(entry,presetCat){
   }
   openSheet([el('h3',{text:editing?'Edit entry':'Add entry'}),
     field('Category','f-cat',catSel),nameF,qtyF,amtF,ownerF,paidF,whereF,field('Date','f-date',dateIn),field('Note','f-note',noteIn),errP,actions]);
+}
+function parseAmount(str){
+  var m=String(str||'').trim().match(/^\$?\s*(\d[\d,]*(?:\.\d+)?|\.\d+)\s*(thousand|million|billion|trillion|mil|k|m|b|t)?\s*(?:\$|gc|giftcards?|gold|dollars?)?$/i);
+  if(!m)return null;
+  var v=parseFloat(m[1].replace(/,/g,''));
+  if(m[2])v*=MULT[m[2].toLowerCase()];
+  return isFinite(v)?Math.round(v*100)/100:null;
+}
+function openAdjust(){
+  var bals=sorted(state.entries.filter(function(e){return e.cat==='money'}));
+  if(!bals.length){toast('Add a balance first.');return}
+  var sel=el('select',{id:'adj-bal'},bals.map(function(e){return el('option',{value:e.id,text:e.name+' ('+unitTxt(unitOf(e),e.amount||0)+')'})}));
+  var cur=state.tab==='money'?null:null;
+  var amt=el('input',{id:'adj-amt',type:'text',inputmode:'text',autocomplete:'off',maxlength:'30',placeholder:'Example: 50M or 2.5B'});
+  var seg=el('div',{class:'seg',role:'radiogroup','aria-label':'Add or remove'},
+    el('label',null,el('input',{type:'radio',name:'adj-mode',id:'adj-add',value:'add'}),el('span',{text:'Add'})),
+    el('label',null,el('input',{type:'radio',name:'adj-mode',id:'adj-rem',value:'remove'}),el('span',{text:'Remove'})));
+  seg.querySelector('#adj-add').checked=true;
+  var err=el('p',{class:'err',id:'adj-err'});
+  var save=el('button',{class:'primary',id:'adj-save',text:'Save',onclick:function(){
+    var e=state.entries.filter(function(x){return x.id===sel.value})[0];
+    if(!e){err.textContent='Pick a balance.';return}
+    var v=parseAmount(amt.value);
+    if(v==null||v<=0){err.textContent='Enter an amount like 50M, 2.5B or 1,200.';amt.focus();return}
+    var add=seg.querySelector('input:checked').value==='add',have=e.amount||0,u=unitOf(e);
+    if(!add&&v>have){err.textContent='Not enough. '+e.name+' has '+unitTxt(u,have)+'.';return}
+    var next=Math.round((have+(add?v:-v))*100)/100;
+    save.disabled=true;
+    saveEntry(Object.assign({},e,{amount:next})).then(function(ok){
+      if(ok===false){save.disabled=false;return}
+      closeSheet();toast((add?'Added ':'Removed ')+unitTxt(u,v)+(add?' to ':' from ')+e.name+'. Now '+unitTxt(u,next));
+    });
+  }});
+  openSheet([el('h3',{text:'Add or remove'}),field('Balance','adj-bal',sel),el('div',{class:'field'},el('span',{class:'lab',text:'Action'}),seg),field('Amount','adj-amt',amt),err,
+    el('div',{class:'actions'},save,el('button',{class:'ghost',onclick:closeSheet,text:'Cancel'}))]);
 }
 function openCatSheet(){
   var nameIn=el('input',{id:'c-name',type:'text',autocomplete:'off',maxlength:'40',placeholder:'For example Vehicles, Weapons, Land'});
